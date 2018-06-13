@@ -12,6 +12,7 @@ from flask import Blueprint, Flask, redirect, url_for, session, jsonify, current
 from flask_principal import Identity, AnonymousIdentity, identity_changed
 
 from models import models
+from camera_notifier.notifier import CameraNotifier
 import utils
 # import exception_handler
 import random
@@ -181,7 +182,8 @@ def register_camera():
     camera.streaming_url = RTMP_SERVER + '/' + data['name']
     camera.last_updated = datetime.datetime.now()
     camera.save()
-
+    notifier = CameraNotifier(camera.id, camera.streaming_url)
+    notifier.notify_agent_start()
     return utils.make_json_response(
         200,
         camera.to_dict()
