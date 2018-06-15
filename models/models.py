@@ -8,10 +8,14 @@ class Camera(db.Document):
     name = db.StringField(max_length=255, required=True, unique=True)
     streaming_url = db.StringField(default='')
     action_dict = db.DictField()
+    algorithm_status = db.DictField()
     last_updated = db.DateTimeField()
 
     def save(self, *args, **kwargs):
         self.last_updated = datetime.now()
+        if self.action_dict:
+            for algorithm_name in action_dict.keys():
+                self.algorithm_status[algorithm_name] = 'idle'
         return super(Camera, self).save(*args, **kwargs)
 
     def __unicode__(self):

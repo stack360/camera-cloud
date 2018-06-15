@@ -183,15 +183,8 @@ def register_camera():
     camera.streaming_url = RTMP_SERVER + '/' + data['name']
     camera.last_updated = datetime.datetime.now()
     camera.save()
-    #notifier = CameraNotifier(camera.id, camera.streaming_url)
-    #notifier.notify_agent_start()
-    algorithm_invoker = AlgorithmInvoker(
-        camera.id
-    )
-    algorithm_invoker.invoke_current_algorithms(
-            camera.action_dict,
-            camera.streaming_url
-    )
+    notifier = CameraNotifier(camera.id, camera.streaming_url)
+    notifier.notify_agent_start()
     return utils.make_json_response(
         200,
         camera.to_dict()
@@ -260,6 +253,35 @@ def unregister_camera(camera_id):
         }
     )
 
+@api.route('/api/cameras/<string:camera_id>/trigger', methods=['POST'])
+def trigger_camera_algorithm(camera_id):
+    camera, error = _get_camera_by_id(camera_id)
+    if error:
+        return utils.make_json_response(**error)
+    algorithm_status = camera.algorithm_status
+    action_dict = camera.action_dict
+    available_action_dict = {
+        k:v for k, v in action_dict.items() if algorithm_status == 'idle'
+    }
+
+    algorithm_invoker = AlgorithmInvoker(
+        camera_id
+    )
+    algorithm_invoker.invoke_current_algorithms(
+            available_action_dict,
+            camera.streaming_url
+    )
+    for algorithm_name in available_action_dict.keys():
+        algorithm_status[algorithm_name] = 'running'
+    camera.algorithm_status = algorithm_status
+    camera.save()
+    return utils.make_json_response(
+        200,
+        {
+            'status': 'triggered'
+        }
+    )
+
 @api.route('/api/cameras/<string:camera_id>/result', methods=['POST'])
 def update_algorithm_result(camera_id):
     camera, error = _get_camera_by_id(camera_id)
@@ -267,7 +289,8 @@ def update_algorithm_result(camera_id):
         return utils.make_json_response(**error)
     data = utils.get_request_data()
     for algorithm, result in data.items():
-        action_list = camera.actions[algorithm][result]
+        camera.algorithm_status[algorithm] = 'idle'
+        action_list = camera.action_dict[algorithm][result]
         for action_dict in action_list:
             action_invoker = ActionInvoker(
                 camera_id
@@ -276,7 +299,7 @@ def update_algorithm_result(camera_id):
                 action_dict['params'],
                 action_dict['action']
             )
-
+    camera.save()
     return utils.make_json_response(
         200,
         {
