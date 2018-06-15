@@ -13,6 +13,7 @@ from flask_principal import Identity, AnonymousIdentity, identity_changed
 
 from models import models
 from camera_notifier.notifier import CameraNotifier
+from invoker import ActionInvoker, AlgorithmInvoker
 import utils
 # import exception_handler
 import random
@@ -182,8 +183,15 @@ def register_camera():
     camera.streaming_url = RTMP_SERVER + '/' + data['name']
     camera.last_updated = datetime.datetime.now()
     camera.save()
-    notifier = CameraNotifier(camera.id, camera.streaming_url)
-    notifier.notify_agent_start()
+    #notifier = CameraNotifier(camera.id, camera.streaming_url)
+    #notifier.notify_agent_start()
+    algorithm_invoker = AlgorithmInvoker(
+        camera.id
+    )
+    algorithm_invoker.invoke_current_algorithms(
+            camera.action_dict,
+            camera.streaming_url
+    )
     return utils.make_json_response(
         200,
         camera.to_dict()
@@ -202,7 +210,7 @@ def get_camera(camera_id):
 @api.route('/api/cameras/<string:camera_id>', methods=['PUT'])
 def update_camera(camera_id):
     data = utils.get_request_data()
-
+    algorithm_invoker = AlgorithmInvoker(camera_id)
     if not (set(data.keys()) <= set(UPDATE_CAMERA_FIELDS)):
         return utils.make_json_response(
             400,
@@ -214,13 +222,20 @@ def update_camera(camera_id):
         return utils.make_json_response(**error)
     if 'name' in data.keys():
         url = camera.streaming_url
-        data['streaming_url'] = url.replace(url.split('/')[-1], data['name'])
+        camera.streaming_url = url.replace(url.split('/')[-1], data['name'])
     if 'actions' in data.keys():
         errors = _validate_action_params(data['actions'])
         if errors:
             return utils.make_json_response(
                 400,
                 errors
+            )
+        if data['actions'] != {}:
+            old_algorithms = camera.action_dict.keys()
+            algorithm_invoker.stop_and_delete_instance(old_algorithms)
+            algorithm_invoker.invoke_current_algorithms(
+                data['actions'],
+                camera.streaming_url
             )
     for k, v in data.items():
         setattr(camera, k, v)
@@ -244,6 +259,31 @@ def unregister_camera(camera_id):
             "status": "deleted"
         }
     )
+
+@api.route('/api/cameras/<string:camera_id>/result', methods=['POST'])
+def update_algorithm_result(camera_id):
+    camera, error = _get_camera_by_id(camera_id)
+    if error:
+        return utils.make_json_response(**error)
+    data = utils.get_request_data()
+    for algorithm, result in data.items():
+        action_list = camera.actions[algorithm][result]
+        for action_dict in action_list:
+            action_invoker = ActionInvoker(
+                camera_id
+            )
+            action_invoker.invoke_action(
+                action_dict['params'],
+                action_dict['action']
+            )
+
+    return utils.make_json_response(
+        200,
+        {
+            "status": "complete"
+        }
+    )
+
 
 @api.route('/api/algorithms', methods=['GET'])
 def list_algorithms():
