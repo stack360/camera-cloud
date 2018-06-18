@@ -14,7 +14,7 @@ class Camera(db.Document):
     def save(self, *args, **kwargs):
         self.last_updated = datetime.now()
         if self.action_dict:
-            for algorithm_name in action_dict.keys():
+            for algorithm_name in self.action_dict.keys():
                 self.algorithm_status[algorithm_name] = 'idle'
         return super(Camera, self).save(*args, **kwargs)
 

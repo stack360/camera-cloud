@@ -12,7 +12,7 @@ class CameraNotifier(object):
     def notify_agent_start(self):
         celery_client.celery.send_task(
             'notify_agent_start',
-            (self.streaming_url,),
+            (self.streaming_url, self.camera_id),
             queue=str(self.camera_id)
         )
         return "task sent."
