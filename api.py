@@ -223,13 +223,6 @@ def update_camera(camera_id):
                 400,
                 errors
             )
-        if data['actions'] != {}:
-            old_algorithms = camera.action_dict.keys()
-            algorithm_invoker.stop_and_delete_instance(old_algorithms)
-            algorithm_invoker.invoke_current_algorithms(
-                data['actions'],
-                camera.streaming_url
-            )
     for k, v in data.items():
         setattr(camera, k, v)
     camera.save()
@@ -298,6 +291,10 @@ def update_algorithm_result(camera_id):
                 action_dict['params'],
                 action_dict['action']
             )
+        # Algorithms can only be reacitvated every 5 seconds.
+        time.sleep(5)
+        algorithm_invokder = AlgorithmInvoker(camera_id)
+        algorithm_invoker.reactivate_algorithms([algorithm])
     camera.save()
     return utils.make_json_response(
         200,

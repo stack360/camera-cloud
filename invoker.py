@@ -27,7 +27,7 @@ class AlgorithmInvoker(Invoker):
             )
         return self.result_dict
 
-    def deactivate_algorithms(self, algorithms):
+    def reactivate_algorithms(self, algorithms):
         for algorithm in algorithms:
             self.conn.root.stop_and_delete_instance(algorithm)
         return

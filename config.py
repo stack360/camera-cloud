@@ -5,8 +5,8 @@ import os, sys, datetime
 
 RTMP_SERVER = 'rtmp://13.57.222.238/live'
 RPYC_SERVER = 'localhost'
-RPYC_port = '18812'
-CAMERA_API = 'http://rabbit:9999/api/cameras/'
+RPYC_PORT = '18812'
+CAMERA_API = 'http://54.177.153.23:9999/api/cameras/'
 
 class Config(object):
     DEBUG = False
