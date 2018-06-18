@@ -8,7 +8,7 @@ class Camera(db.Document):
     name = db.StringField(max_length=255, required=True, unique=True)
     streaming_url = db.StringField(default='')
     action_dict = db.DictField()
-    algorithm_status = db.DictField()
+    algorithm_status = db.DictField(default={})
     last_updated = db.DateTimeField()
 
     def save(self, *args, **kwargs):
@@ -27,6 +27,7 @@ class Camera(db.Document):
         camera_dict['streaming_url'] = self.streaming_url
         camera_dict['action_dict'] = self.action_dict
         camera_dict['id'] = str(self.id)
+        camera_dict['algorithm_status'] = self.algorithm_status
         return camera_dict
 
 
