@@ -261,9 +261,8 @@ def trigger_camera_algorithm(camera_id):
     algorithm_status = camera.algorithm_status
     action_dict = camera.action_dict
     available_action_dict = {
-        k:v for k, v in action_dict.items() if algorithm_status == 'idle'
+        k:v for k, v in action_dict.items() if algorithm_status[k] == 'idle'
     }
-
     algorithm_invoker = AlgorithmInvoker(
         camera_id
     )

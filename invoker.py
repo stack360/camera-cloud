@@ -1,9 +1,7 @@
 import rpyc
 import simplejson as json
 
-RPYC_SERVER = 'localhost'
-RPYC_PORT = 18812
-CAMERA_API = 'http://localhost:9999/api/cameras/'
+from config import *
 
 class Invoker(object):
     def __init__(self, camera_id):
