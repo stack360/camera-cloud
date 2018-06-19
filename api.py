@@ -4,6 +4,7 @@ import ast
 import exception_handler
 import mongoengine
 import re
+import time
 
 from datetime import datetime
 
@@ -25,8 +26,8 @@ from bson import ObjectId
 import urllib, hashlib
 
 api = Blueprint('api', __name__, template_folder='templates')
-CREATE_CAMERA_FIELDS = ['action_dict', 'name']
-UPDATE_CAMERA_FIELDS = ['action_dict', 'name']
+CREATE_CAMERA_FIELDS = ['actions', 'name']
+UPDATE_CAMERA_FIELDS = ['actions', 'name', 'description']
 CREATE_ALGORITHM_FIELDS = ['name', 'options', 'description']
 UPDATE_ALGORITHM_FIELDS = ['name', 'options', 'description']
 CREATE_ACTION_FIELDS = ['name', 'params', 'description']
@@ -217,15 +218,18 @@ def update_camera(camera_id):
         url = camera.streaming_url
         camera.streaming_url = url.replace(url.split('/')[-1], data['name'])
     if 'actions' in data.keys():
-        errors = _validate_action_params(data['actions'])
+        errors = _validate_camera_actions(data['actions'])
         if errors:
             return utils.make_json_response(
                 400,
                 errors
             )
+        data['action_dict'] = data['actions']
+        data.pop('actions', None)
     for k, v in data.items():
         setattr(camera, k, v)
     camera.save()
+    camera.last_updated = datetime.datetime.now()
     return utils.make_json_response(
         200,
         camera.to_dict()
@@ -293,7 +297,7 @@ def update_algorithm_result(camera_id):
             )
         # Algorithms can only be reacitvated every 5 seconds.
         time.sleep(5)
-        algorithm_invokder = AlgorithmInvoker(camera_id)
+        algorithm_invoker = AlgorithmInvoker(camera_id)
         algorithm_invoker.reactivate_algorithms([algorithm])
     camera.save()
     return utils.make_json_response(
