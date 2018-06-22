@@ -187,8 +187,8 @@ def register_camera():
     camera.streaming_url = RTMP_SERVER + '/' + data['name']
     camera.last_updated = datetime.datetime.now()
     camera.save()
-    #notifier = CameraNotifier(camera.id, camera.streaming_url)
-    #notifier.notify_agent_start()
+    notifier = CameraNotifier(camera.id, camera.streaming_url)
+    notifier.notify_agent_start()
     return utils.make_json_response(
         200,
         camera.to_dict()
@@ -287,6 +287,18 @@ def trigger_camera_algorithm(camera_id):
         }
     )
 
+@api.route('/api/cameras/<string:camera_id>/agent_start', methods=['POST'])
+def trigger_agent_start(camera_id):
+    camera, error = _get_camera_by_id(camera_id)
+    if error:
+        utils.make_json_response(**error)
+    notifier = CameraNotifier(camera.id, camera.streaming_url)
+    notifier.notify_agent_start()
+    return utils.make_json_response(
+        200,
+        {'status': 'Agent start message sent.'}
+    )
+
 @api.route('/api/cameras/<string:camera_id>/result', methods=['POST'])
 def update_algorithm_result(camera_id):
     camera, error = _get_camera_by_id(camera_id)
@@ -299,16 +311,16 @@ def update_algorithm_result(camera_id):
             action_list = camera.action_dict[algorithm][result]
         except KeyError:
             action_list = camera.action_dict[algorithm]['else']
-            for action in action_list:
-                if not action:
-                    pass
-                action_invoker = ActionInvoker(
-                    camera_id
-                )
-                action_invoker.invoke_action(
-                    action['params'],
-                    action['action']
-                )
+        for action in action_list:
+            if not action:
+                pass
+            action_invoker = ActionInvoker(
+                camera_id
+            )
+            action_invoker.invoke_action(
+                action['params'],
+                action['action']
+            )
 
         # Algorithms can only be reacitvated every 5 seconds.
         time.sleep(5)
