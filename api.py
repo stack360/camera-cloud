@@ -49,13 +49,13 @@ def _get_request_args(**kwargs):
 
 def _validate_camera_actions(actions):
     if actions == {}:
-        return
+        return {}, None
 
     all_algorithm_objs = models.Algorithm.objects.all()
     all_action_objs = models.Action.objects.all()
     all_algorithms = [a.name for a in all_algorithm_objs]
     all_actions = [a.name for a in all_action_objs]
-    all_options = []
+    all_options = ['else']
     for algo_obj in all_algorithm_objs:
         all_options.extend(algo_obj.options)
 
@@ -63,13 +63,13 @@ def _validate_camera_actions(actions):
         filter(lambda x: not(x in all_algorithms), actions.keys())
     )
     if invalid_algos:
-        return "Algorithms not found: " + ", ".join(invalid_algos)
+        return None, "Algorithms not found: " + ", ".join(invalid_algos)
 
     invalid_options = list(
         filter(lambda x: not(set(x.keys())<=set(all_options)), actions.values())
     )
     if invalid_options:
-        return "These options are invalid: " + str(invalid_options)
+        return None, "These options are invalid: " + str(invalid_options)
 
     invalid_actions = []
     invalid_keys = []
@@ -118,8 +118,11 @@ def _validate_camera_actions(actions):
         action_error_message += "\nThese required action params are missing: " \
             + ", ".join(missing_params) + ";"
     if action_error_message:
-        return action_error_message
-    return
+        return None, action_error_message
+    for algorithm_name in actions.keys():
+        if 'else' not in actions[algorithm_name].keys():
+            actions[algorithm_name]['else'] = []
+    return actions, None
 
 def _validate_action_params(params):
     if params == {}:
@@ -173,9 +176,9 @@ def register_camera():
 
     camera = models.Camera()
     camera.name = data['name']
-    errors = _validate_camera_actions(data['actions'])
+    actions, errors = _validate_camera_actions(data['actions'])
     if not errors:
-        camera.action_dict = data['actions']
+        camera.action_dict = actions
     else:
         return utils.make_json_response(
             400,
@@ -184,8 +187,8 @@ def register_camera():
     camera.streaming_url = RTMP_SERVER + '/' + data['name']
     camera.last_updated = datetime.datetime.now()
     camera.save()
-    notifier = CameraNotifier(camera.id, camera.streaming_url)
-    notifier.notify_agent_start()
+    #notifier = CameraNotifier(camera.id, camera.streaming_url)
+    #notifier.notify_agent_start()
     return utils.make_json_response(
         200,
         camera.to_dict()
@@ -204,7 +207,6 @@ def get_camera(camera_id):
 @api.route('/api/cameras/<string:camera_id>', methods=['PUT'])
 def update_camera(camera_id):
     data = utils.get_request_data()
-    algorithm_invoker = AlgorithmInvoker(camera_id)
     if not (set(data.keys()) <= set(UPDATE_CAMERA_FIELDS)):
         return utils.make_json_response(
             400,
@@ -218,13 +220,13 @@ def update_camera(camera_id):
         url = camera.streaming_url
         camera.streaming_url = url.replace(url.split('/')[-1], data['name'])
     if 'actions' in data.keys():
-        errors = _validate_camera_actions(data['actions'])
+        actions, errors = _validate_camera_actions(data['actions'])
         if errors:
             return utils.make_json_response(
                 400,
                 errors
             )
-        data['action_dict'] = data['actions']
+        data['action_dict'] = actions
         data.pop('actions', None)
     for k, v in data.items():
         setattr(camera, k, v)
@@ -257,6 +259,13 @@ def trigger_camera_algorithm(camera_id):
         return utils.make_json_response(**error)
     algorithm_status = camera.algorithm_status
     action_dict = camera.action_dict
+    if action_dict == {}:
+        return utils.make_json_response(
+            200,
+            {
+                'status': 'No algorithm specified.'
+            }
+        )
     available_action_dict = {
         k:v for k, v in action_dict.items() if algorithm_status[k] == 'idle'
     }
@@ -286,15 +295,21 @@ def update_algorithm_result(camera_id):
     data = utils.get_request_data()
     for algorithm, result in data.items():
         camera.algorithm_status[algorithm] = 'idle'
-        action_list = camera.action_dict[algorithm][result]
-        for action_dict in action_list:
-            action_invoker = ActionInvoker(
-                camera_id
-            )
-            action_invoker.invoke_action(
-                action_dict['params'],
-                action_dict['action']
-            )
+        try:
+            action_list = camera.action_dict[algorithm][result]
+        except KeyError:
+            action_list = camera.action_dict[algorithm]['else']
+            for action in action_list:
+                if not action:
+                    pass
+                action_invoker = ActionInvoker(
+                    camera_id
+                )
+                action_invoker.invoke_action(
+                    action['params'],
+                    action['action']
+                )
+
         # Algorithms can only be reacitvated every 5 seconds.
         time.sleep(5)
         algorithm_invoker = AlgorithmInvoker(camera_id)
