@@ -322,8 +322,8 @@ def update_algorithm_result(camera_id):
                 action['action']
             )
 
-        # Algorithms can only be reacitvated every 5 seconds.
-        time.sleep(5)
+        # Algorithms cooldown time: 15 seconds.
+        time.sleep(15)
         algorithm_invoker = AlgorithmInvoker(camera_id)
         algorithm_invoker.reactivate_algorithms([algorithm])
     camera.save()
